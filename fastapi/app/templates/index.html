@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pages</title>
+</head>
+<body>
+    <div>
+        {% for post in posts %}
+            <div>
+                <img src="{{ url_for('static', path='images/' + post.image_id|string + '.webp')}}" alt="фото">
+                <div>
+                    <h1>Название: {{ post.title }}</h1>
+                    <h3>Дата релиза: {{ post.release_date}}</h3>
+                    <h3>Кол-во серий: {{ post.series_count }}</h3>
+                    <h3>Жанр: {{ post.genre }}</h3>
+                    <p>Описание: {{ post.description }}</p>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</body>
+</html>

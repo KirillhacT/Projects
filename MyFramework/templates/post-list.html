@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}
+Главная страница
+{% endblock %}
+{% block style %}
+	{% include "inc-style.html" %}
+{% endblock %}
+{% block menu %}
+	{% include "inc-menu.html" %}
+{% endblock %}
+{% block body %}
+	<div>
+		<a href="/">Главная</a>
+		<a href="/post-create/">Создать пост</a>
+	</div>
+	<div>
+		<h1>Список существующих постов</h1>
+        {% for item in post_list %}
+        <div>
+            {{item.title}}
+			{{item.description}}
+        </div>
+        {% endfor %}
+	</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+url -> https://localhost:8000/trades/
+
+https://localhost:8000/trades/{trade_id} -> параметр пути
+https://localhost:8000/trades/1?data=now&skill=pro -> query параметр
+
+python3 -m venv venv -> создание виртуального окружения
+source venv/bin/activate -> активация виртуального окружения
+uvicorn <имя файла>:<точка входа> --reload (не обязательно) -> запуск uvicorn
+alembic init <название папки> создает файлы для работы с миграциями
+alembic revision --autogenerate -m <name of migration> -> запуск миграции
+alembic upgrade <имя миграции> (head) -> прогоняем миграции
+alembic stamp <имя миграции> (head) -> сбрасывает миграции или что-то типо того
