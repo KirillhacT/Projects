@@ -61,14 +61,6 @@ with open(file_path, "rb") as f:
             raise NotImplementedError(f"Unexpected constant tag {tag} in class file {file_path}")
         constant_pool.append(cp_info)
     clazz['constant_pool'] = constant_pool
-# {'tag': 'CONSTANT_Class', 'name_index': 4}
-# {'tag': 'CONSTANT_Class', 'name_index': 10}
-# {'tag': 'CONSTANT_Class', 'name_index': 18}
-# {'tag': 'CONSTANT_Class', 'name_index': 24}
-# real- 4
-# real - 10
-# real - 19
-# real - 26
 
 print("-------------------------------")
 for cp_info in clazz["constant_pool"]:
