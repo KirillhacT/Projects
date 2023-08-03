@@ -1,9 +1,5 @@
-import pprint
-import sys
 import io
-
 file_path = "./Main.class"
-
 
 #Числа для определения констант, содержащихся в файлe *.class
 CONSTANT_Class = 7
@@ -21,7 +17,7 @@ CONSTANT_MethodHandle = 15
 CONSTANT_MethodType = 16
 CONSTANT_InvokeDynamic = 18
 
-#Байты для флагов доступа
+#Байты для флагов
 class_access_flags = [
     ("ACC_PUBLIC", 0x0001), 	 
     ("ACC_FINAL", 0x0010), 	
@@ -67,10 +63,10 @@ def parse_u2(f): return int.from_bytes(f.read(2), "big")
 def parse_u4(f): return int.from_bytes(f.read(4), "big")
 def parse_uN(f, n): return int.from_bytes(f.read(n), "big")
 
-pp = pprint.PrettyPrinter(indent=4)
 #Байты в java коде хранятся в big endian
 
 def parse_class_file(file_path):
+    """Парсит файл java c расширением .class и складывает их в словарь"""
     with open(file_path, "rb") as f:
         clazz = {}
         clazz['magic'] = hex(parse_u4(f))
@@ -143,17 +139,101 @@ def find_attributes_by_name(clazz, attributes, name: bytes):
     return [attrs for attrs in attributes 
         if clazz['constant_pool'][attrs['attribute_name_index'] - 1]['bytes'] == name]
 
+def parse_code_info(info: bytes):
+    with io.BytesIO(info) as f:
+        code = {}
+        code["max_stack"] = parse_u2(f)
+        code["max_locals"] = parse_u2(f)
+        code_lenght = parse_u4(f)
+        code["code"] = f.read(code_lenght)
+        exception_table_lenght = parse_u2(f)
+        for i in range(exception_table_lenght):
+            assert False, "Parsing exception table isn't implemented"
+        attrubutes_count = parse_u2(f)
+        code['attributes'] = parse_attributes(f, attrubutes_count)
+        return code
+
+getstatic_opcode = 0xB2
+ldc_opcode = 0x12
+invokevirtual_opcode = 0xb6
+return_opcode = 0xB1
+bipush_opcode = 0x10
+
+def get_name_of_class(clazz, class_index) -> bytes:
+    return clazz['constant_pool'][clazz['constant_pool'][class_index - 1]['name_index'] - 1]['bytes']
+
+def get_name_of_member(clazz, name_and_type_index) -> bytes:
+    return clazz['constant_pool'][clazz['constant_pool'][name_and_type_index - 1]["name_index"] - 1]['bytes']
+
+def type_of(frame):
+    if frame['type'] == 'FakePrintStream':
+        return b'java/io/PrintStream'
+    else:
+        assert False, f"type_of isn't implemented for {frame}"
+
+def execute_code(clazz, code: bytes):
+    stack = []
+    with io.BytesIO(code) as f:
+        while f.tell() < len(code):
+            opcode = parse_u1(f)
+            # print(hex(opcode), opcode)
+            if opcode == getstatic_opcode:
+                index = parse_u2(f)
+                fieldref = clazz['constant_pool'][index - 1]
+                name_of_class = get_name_of_class(clazz, fieldref['class_index'])
+                name_of_member = get_name_of_member(clazz, fieldref['name_and_type_index'])
+                if name_of_class == b'java/lang/System' and name_of_member == b'out':
+                    stack.append({
+                    "type": "FakePrintStream"
+                    })
+                else:
+                    assert False, f"Unexpected method {name_of_class}/{name_of_member} in getstatic construction"
+            elif opcode == ldc_opcode:
+                index = parse_u1(f)
+                stack.append({"type": "Constant", "const": clazz['constant_pool'][index - 1]})
+            elif opcode == invokevirtual_opcode:
+                index = parse_u2(f)
+                methodref = clazz['constant_pool'][index - 1]
+                name_of_class = get_name_of_class(clazz, methodref['class_index'])
+                name_of_member = get_name_of_member(clazz, methodref['name_and_type_index'])
+                if name_of_class == b'java/io/PrintStream' and name_of_member == b'println': 
+                    n = len(stack)
+                    if n < 2:
+                        assert False, f"{name_of_class}/{name_of_member} expected 2 arguments, but provided {n}"
+                    obj = stack[-2]
+                    typ = type_of(obj)
+                    if typ != b'java/io/PrintStream':
+                        assert False, f"Expected type java/io/PrintStream but got {typ}"
+                    arg = stack[-1]
+                    if arg['type'] == "Constant": 
+                        if arg["const"]["tag"] == "CONSTANT_String":
+                            print(clazz['constant_pool'][arg['const']['string_index'] - 1]['bytes'].decode('utf-8'))
+                        else:
+                            assert False, f"Support for {arg['const']['tag']} is not implemented"
+                    elif arg['type'] == "Integer":
+                        print(arg["value"])
+                    else:
+                        assert False, f"Support for {arg['value']} is not implemented"
+                else:
+                    assert False, f"Unknown method {name_of_class}/{name_of_member} in invokevirtual construction"
+            elif opcode == bipush_opcode:
+                byte = parse_u1(f)
+                stack.append({"type": "Integer", "value": byte})
+            elif opcode == return_opcode:
+                return
+            else:
+                assert False, f"Unknown opcode {hex(opcode)}"
+
+
+
+
 clazz = parse_class_file("./Main.class")
 [main] = find_methods_by_name(clazz, b'main') #magic construction
 [code] = find_attributes_by_name(clazz, main['attributes'], b'Code')
+code_attrib = parse_code_info(code['info'])
+print(code_attrib['code'])
+execute_code(clazz, code_attrib['code'])
 
-# with io.BytesIO(code['info']) as f:
-#     code = {}
-#     code["max_stack"] = parse_u2(f)
-#     code["max_locals"] = parse_u2(f)
-#     code_lenght = parse_u4(f)
-#     pp.pprint(f.read(code_lenght))
-#     pp.pprint(code)
 
 #class and superclass
 # pp.pprint(clazz["constant_pool"][clazz['constant_pool'][clazz['this_class'] - 1]["name_index"] - 1]['bytes'])
