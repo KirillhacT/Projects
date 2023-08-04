@@ -1,0 +1,6 @@
+alembic -> миграции
+sqladmin -> админка
+sqlalchemy -> модели, работа с бд
+black, flake8, isort, autoflake, pyright -> cтилизация кода
+pydantic -> валидация данных
+redis -> кэширование данных

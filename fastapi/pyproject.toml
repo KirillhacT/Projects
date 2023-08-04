@@ -1,0 +1,6 @@
+[tool.black]
+line-lenght = 88
+target-version = ['py310']
+
+[tool.autoflake]
+check_diff = true
