@@ -450,11 +450,17 @@ int main(int argc, char** argv)
     Array* string = Array::createString("string", Type::I8, name);
     Core::Util::retriveNsave(string);
 
-    Object Test("Test");
+
+    Object Test("Test1");
     Test.addEntitie(p);
     Test.addEntitie(array);
     Test.addEntitie(string);
+
+    Object Test2("Test2");
+    Test2.addEntitie(p);
+    Core::Util::retriveNsave(&Test2);
     
+    Test.addEntitie(&Test2);
     Core::Util::retriveNsave(&Test);
 
     // std::cout << p->getSize() << " " << p->getName() << std::endl;

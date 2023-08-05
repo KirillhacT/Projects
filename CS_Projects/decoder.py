@@ -18,7 +18,7 @@ def decoder(file_path) -> dict:
     with open(file_path, 'rb') as file:
         name = _read_name(file)
         params["name"] = name
-        if name == b'Test':
+        if b'Test' in name:
             _object_parser(file, params)
         elif name == b'string':
             _array_parsing(file, params, 'string')
@@ -27,31 +27,6 @@ def decoder(file_path) -> dict:
         else:
             _primitive_parsing(file, params)
         return params
-
-
-# def primitive_decoder(file_path) -> dict:
-#     params = {}
-#     with open(file_path, 'rb') as file:
-#         name = _read_name(file)
-#         params["name"] = name
-#         _primitive_parsing(file, params)
-#         return params
-
-# def array_decoder(file_path, condition) -> dict:
-#         params = {}
-#         with open(file_path, 'rb') as file:
-#             name = _read_name(file)
-#             params["name"] = name
-#             _array_parsing(file, params, condition)
-#             return params
-
-# def object_decoder(file_path: str) -> dict:
-#     params = {}
-#     with open(file_path, 'rb') as file:
-#         name = _read_name(file)
-#         params['name'] = name
-#         _object_parser(file, params)    
-#         return params
 
 
 def _read_name(file) -> bytes:
@@ -98,20 +73,23 @@ def _object_parser(file, params: dict) -> None:
         attr_params = {}
         attr_name = _read_name(file)
         attr_params["name"] = attr_name
+        print(attr_name)
         if attr_name == b"string":
             _array_parsing(file, attr_params, "string")
         elif attr_name == b"array":
             _array_parsing(file, attr_params, "array")
+        elif b'Test' in attr_name: #временно
+            _object_parser(file, attr_params)
         else:
             _primitive_parsing(file, attr_params)
         attr_object.append(attr_params)
     params["attributes"] = attr_object
-    size = bytes_to_int(file, 4) #int32_t -> 4 bytes
+    size = bytes_to_int(file, 4)
     params['size'] = size
 
 
 
-print(decoder("int32.ttc"))
-print(decoder("array.ttc"))
-print(decoder("string.ttc"))
-pp.pprint(decoder('Test.ttc'))
+# print(decoder("int32.ttc"))
+# print(decoder("array.ttc"))
+# print(decoder("string.ttc"))
+pp.pprint(decoder('Test1.ttc'))
