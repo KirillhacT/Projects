@@ -164,7 +164,14 @@ namespace ObjectModel
     };
     class Object : public Root
     {
-
+        private:
+            std::vector<Root*> entities;
+            int16_t count = 0;
+        public:
+            Object(std::string);
+            void addEntitie(Root* r); 
+            Root* findByName(std::string);  
+            void pack(std::vector<int8_t>*, int16_t*);
     };
 }
 
@@ -216,7 +223,18 @@ namespace Core
 
 namespace ObjectModel
 {
-    //definition Object Model
+    //definition Object Model   
+
+    Object::Object(std::string name)
+    {
+        setName(name);
+        wrapper = static_cast<int8_t>(Wrapper::OBJECT);
+        size += sizeof(count);
+    }
+    Array::Array()
+    {
+        size += sizeof(type) + sizeof(count);
+    }
 
     
     void Root::setName(std::string name)
@@ -259,14 +277,44 @@ namespace ObjectModel
         Core::encode<int8_t>(buffer, iterator, wrapper);
         Core::encode<int8_t>(buffer, iterator, type);
         Core::encode<int32_t>(buffer, iterator, count);
-        Core::encode<int8_t>(buffer, iterator, *data); //Мы разыменовываем весь вектор, а не указатель на 1 эл
+        Core::encode<int8_t>(buffer, iterator, *data);
         Core::encode<int32_t>(buffer, iterator, size);
     }
 
-    Array::Array()
+    void Object::pack(std::vector<int8_t>* buffer, int16_t* iterator)
     {
-        size += sizeof(type) + sizeof(count);
+        Core::encode<int16_t>(buffer, iterator, nameLenght);
+        Core::encode<std::string>(buffer, iterator, name);
+        Core::encode<int8_t>(buffer, iterator, wrapper);
+        Core::encode<int16_t>(buffer, iterator, count);
+        for (Root* r: entities)
+        {
+            r->pack(buffer, iterator);
+        }
+        Core::encode<int32_t>(buffer, iterator, size);
     }
+
+    void Object::addEntitie(Root* r)
+    {
+        this->entities.push_back(r);
+        count += 1;
+        size += r->getSize();
+    }
+
+    Root* Object::findByName(std::string name)
+    {
+        for (auto r: entities)
+        {
+            if (r->getName() == name)
+            {
+                return r;
+            }
+        }
+        std::cout << "no object finded" << std::endl;
+        return nullptr;
+    }
+
+
 }
 
 
@@ -390,9 +438,9 @@ using namespace ObjectModel;
 int main(int argc, char** argv)
 { 
     assert(Core::Util::isLittleEndian());
-    // int32_t foo = 500000;
-    // Primitive* p = Primitive::create("int32", Type::I32, foo);
-    // Core::Util::retriveNsave(p);
+    int32_t foo = 500000;
+    Primitive* p = Primitive::create("int32", Type::I32, foo);
+    Core::Util::retriveNsave(p);
 
     std::vector<int64_t> data { 1,2,3,4 };
     Array* array = Array::createArray("array", Type::I64, data);
@@ -401,6 +449,13 @@ int main(int argc, char** argv)
     std::string name = "name";
     Array* string = Array::createString("string", Type::I8, name);
     Core::Util::retriveNsave(string);
+
+    Object Test("Test");
+    Test.addEntitie(p);
+    Test.addEntitie(array);
+    Test.addEntitie(string);
+    
+    Core::Util::retriveNsave(&Test);
 
     // std::cout << p->getSize() << " " << p->getName() << std::endl;
     // System Foo("foo");
