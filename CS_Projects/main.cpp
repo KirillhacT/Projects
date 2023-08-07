@@ -3,6 +3,8 @@
 #include <bitset>
 #include <assert.h>
 #include <fstream>
+#include <random>
+#include <string.h>
 
 namespace Core 
 {
@@ -54,26 +56,26 @@ namespace ObjectModel
     enum class Wrapper : int8_t
     {
         PRIMITIVE = 1,
-        ARRAY,
-        STRING,
-        OBJECT
+        ARRAY = 2,
+        STRING = 3,
+        OBJECT = 4
     };
 
     enum class Type : int8_t
     {
         I8 = 1,
-        I16,
-        I32,
-        I64,
+        I16 = 2,
+        I32 = 3,
+        I64 = 4,
         
-        U8,
-        U16,
-        U32,
-        U64,
+        U8 = 5,
+        U16 = 6,
+        U32 = 7,
+        U64 = 8,
 
-        FLOAT,
-        DOUBLE,
-        BOOL
+        FLOAT = 9,
+        DOUBLE = 10,
+        BOOL = 11
     };
 
     class Root
@@ -89,7 +91,7 @@ namespace ObjectModel
                 name("unknown"),
                 nameLenght(0),
                 wrapper(0),
-                size(sizeof(nameLenght) + sizeof(wrapper) + sizeof(size)) {} //!
+                size(sizeof(nameLenght) + sizeof(wrapper) + sizeof(size)) {}
         public:
             int32_t getSize();
             std::string getName();
@@ -102,10 +104,7 @@ namespace ObjectModel
             int8_t type = 0;
             std::vector<int8_t>* data = nullptr; //в нее записываем байты значения 
         private:
-            Primitive()
-            {
-                size += sizeof(type);
-            };
+            Primitive();
         public:
             template<typename T>
             static Primitive* create(std::string name, Type type, T value) //Fabric
@@ -225,17 +224,22 @@ namespace ObjectModel
 {
     //definition Object Model   
 
+    Primitive::Primitive()
+    {
+        size += sizeof(type);
+    };
+
+    Array::Array()
+    {
+        size += sizeof(type) + sizeof(count);
+    }
+
     Object::Object(std::string name)
     {
         setName(name);
         wrapper = static_cast<int8_t>(Wrapper::OBJECT);
         size += sizeof(count);
     }
-    Array::Array()
-    {
-        size += sizeof(type) + sizeof(count);
-    }
-
     
     void Root::setName(std::string name)
     {
@@ -330,7 +334,7 @@ namespace EventSystem
         public:
             void addEvent(Event*);
             Event* getEvent();
-            // void serialize();
+            void serialize();
         private:
             friend class Event;
             std::string name;
@@ -341,19 +345,22 @@ namespace EventSystem
     };
     class Event
     {
+        private:
+            int32_t ID;
         public:
             enum DeviceType : int8_t
             {
                 KEYBOARD = 1,
-                MOUSE,
-                TOUCHPAD,
-                JOYSTICK,
+                MOUSE = 2,
+                TOUCHPAD = 3,
+                JOYSTICK = 4,
             };
             DeviceType dType;
             System* system = nullptr;
         public:
             Event(DeviceType);
             DeviceType getdType();
+            int32_t getID();
             friend std::ostream& operator<<(std::ostream& stream, const DeviceType dType)
             {
                 std::string result;
@@ -368,6 +375,7 @@ namespace EventSystem
                 return stream << result;
             }
             void bind(System*, Event*);
+            void serialize(ObjectModel::Object* o);
 
 
     };
@@ -379,12 +387,11 @@ namespace EventSystem
             bool released;
         public:
             KeyBoardEvent(int16_t, bool, bool);
-            ~KeyBoardEvent();
+            void serialize(ObjectModel::Object* o); 
     };
-
     //definition
 
-    System::System(std::string) 
+    System::System(std::string name) 
     :
     name(name), 
     descriptor(123), 
@@ -406,9 +413,48 @@ namespace EventSystem
         return events.front();
     }
 
+    /*
+    std::string name;
+    int32_t descriptor;
+    int16_t index;
+    bool active;
+    std::vector<Event*> events;    
+    */
+    void System::serialize()
+    {
+        ObjectModel::Object system("Sysinfo");
+        ObjectModel::Array* name = ObjectModel::Array::createString("sysName", ObjectModel::Type::I8, this->name);
+        ObjectModel::Primitive* desc = ObjectModel::Primitive::create("desc", ObjectModel::Type::I32, this->descriptor);
+        ObjectModel::Primitive* index = ObjectModel::Primitive::create("index", ObjectModel::Type::I16, this->index);
+        ObjectModel::Primitive* active = ObjectModel::Primitive::create("active", ObjectModel::Type::BOOL, this->active);
+
+        system.addEntitie(name);
+        system.addEntitie(desc);
+        system.addEntitie(index);
+        system.addEntitie(active);
+
+        for (Event* e: events)
+        {
+            KeyBoardEvent* kb = static_cast<KeyBoardEvent*>(e);
+            ObjectModel::Object* eventObject = new ObjectModel::Object("Event: " + std::to_string(e->getID()));
+            kb->serialize(eventObject);
+            system.addEntitie(eventObject);
+        }
+        Core::Util::retriveNsave(&system);   
+    }
+
     Event::Event(DeviceType dType)
     {
+        //Cоздаем рандомный айдишник от 1 до 100 (не повторяются и рассчитываются наперед)
+        std::random_device rd;
+        std::uniform_int_distribution<> desctr(10, 99);
+        this->ID = desctr(rd);
         this->dType = dType;
+    }
+
+    int32_t Event::getID()
+    {
+        return ID;
     }
 
     void Event::bind(System* system, Event* event)
@@ -417,6 +463,14 @@ namespace EventSystem
         this->system->events.push_back(event);
     }
 
+    void Event::serialize(ObjectModel::Object* o)
+    {
+        ObjectModel::Primitive* ID = ObjectModel::Primitive::create("ID", ObjectModel::Type::I32, this->getID());
+        ObjectModel::Primitive* dType = ObjectModel::Primitive::create("dType", ObjectModel::Type::I8, static_cast<int8_t>(this->dType));
+        o->addEntitie(ID);
+        o->addEntitie(dType);
+    }
+     
 
     Event::DeviceType Event::getdType()
     {
@@ -429,6 +483,18 @@ namespace EventSystem
         keyCode(keyCode),
         pressed(pressed),
         released(released) {}
+
+    void KeyBoardEvent::serialize(ObjectModel::Object* o)
+    {
+        Event::serialize(o);
+        ObjectModel::Primitive* keyCode = ObjectModel::Primitive::create("keyCode", ObjectModel::Type::I16, this->keyCode);
+        ObjectModel::Primitive* pressed = ObjectModel::Primitive::create("pressed", ObjectModel::Type::BOOL, this->pressed);
+        ObjectModel::Primitive* released = ObjectModel::Primitive::create("released", ObjectModel::Type::BOOL, this->released);    
+        o->addEntitie(keyCode);
+        o->addEntitie(pressed);
+        o->addEntitie(released);
+    }
+
 }
 
 using namespace EventSystem;
@@ -438,35 +504,37 @@ using namespace ObjectModel;
 int main(int argc, char** argv)
 { 
     assert(Core::Util::isLittleEndian());
-    int32_t foo = 500000;
-    Primitive* p = Primitive::create("int32", Type::I32, foo);
-    Core::Util::retriveNsave(p);
+    //Тест примитивов и массивов
+    // int32_t foo = 500000;
+    // Primitive* p = Primitive::create("int32", Type::I32, foo);
+    // Core::Util::retriveNsave(p);
 
-    std::vector<int64_t> data { 1,2,3,4 };
-    Array* array = Array::createArray("array", Type::I64, data);
-    Core::Util::retriveNsave(array);
+    // std::vector<int64_t> data { 1,2,3,4 };
+    // Array* array = Array::createArray("array", Type::I64, data);
+    // Core::Util::retriveNsave(array);
 
-    std::string name = "name";
-    Array* string = Array::createString("string", Type::I8, name);
-    Core::Util::retriveNsave(string);
+    // std::string name = "name";
+    // Array* string = Array::createString("string", Type::I8, name);
+    // Core::Util::retriveNsave(string);
 
+    //Тест Объектов
+    // Object Test("Test1");
+    // Test.addEntitie(p);
+    // Test.addEntitie(array);
+    // Test.addEntitie(string);
 
-    Object Test("Test1");
-    Test.addEntitie(p);
-    Test.addEntitie(array);
-    Test.addEntitie(string);
-
-    Object Test2("Test2");
-    Test2.addEntitie(p);
-    Core::Util::retriveNsave(&Test2);
+    // Object Test2("Test2");
+    // Test2.addEntitie(p);
+    // Core::Util::retriveNsave(&Test2); 
     
-    Test.addEntitie(&Test2);
-    Core::Util::retriveNsave(&Test);
+    // Test.addEntitie(&Test2);
+    // Core::Util::retriveNsave(&Test);
 
-    // std::cout << p->getSize() << " " << p->getName() << std::endl;
-    // System Foo("foo");
-    // Event* e = new KeyBoardEvent('a', true, false);
-    // Foo.addEvent(e);
+    
+    System Foo("foo");
+    Event* e = new KeyBoardEvent('a', true, false);
+    Foo.addEvent(e);
+    Foo.serialize();
     // KeyBoardEvent* kb = static_cast<KeyBoardEvent*>(Foo.getEvent());
     // std::cout << kb->system->getEvent()->getdType() << std::endl;
 }
