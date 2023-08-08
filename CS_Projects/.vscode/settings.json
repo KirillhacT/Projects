@@ -46,5 +46,6 @@
         "typeinfo": "cpp",
         "bitset": "cpp",
         "fstream": "cpp"
-    }
+    },
+    "C_Cpp.errorSquiggles": "disabled"
 }

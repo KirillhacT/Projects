@@ -49,6 +49,39 @@ namespace Core
             encode<T>(buffer, iterator, value[i]);
         }
     }
+
+
+    //deserialize
+    template<typename T>    
+    T decode(const std::vector<int8_t>& buffer, int16_t& it)
+    {
+        T result = 0;
+        for (unsigned i = 0; i < sizeof(T); i++)
+        {
+            T temp = (T)buffer[it++] << (sizeof(T) * 8) - (8 * (i + 1));
+            result |= temp;
+        }
+        return result;
+    }
+
+    template<>    
+    inline std::string decode<std::string>(const std::vector<int8_t>& buffer, int16_t& it)
+    {
+        it -= 2;
+        int16_t name_lenght = decode<int16_t>(buffer, it);
+        std::string result((buffer.begin() + it), (buffer.begin() + (it + name_lenght)));
+        it += name_lenght;
+        return result;
+    }
+
+    template<typename ...>
+    void decode(const std::vector<int8_t>& buffer, int16_t& it, std::vector<int8_t>& dest)
+    {
+        for (unsigned i = 0; i < dest.size(); i++)
+        {
+            dest[i] = buffer[it++];
+        }
+    }
 }
 
 namespace ObjectModel
@@ -77,6 +110,22 @@ namespace ObjectModel
         DOUBLE = 10,
         BOOL = 11
     };
+
+    template<typename ...>
+    int8_t getTypeSize(Type type)
+    {
+        switch (type)
+        {
+            case Type::BOOL: return sizeof(bool); break;
+            case Type::I8: return sizeof(int8_t); break;
+            case Type::I16: return sizeof(int16_t); break;
+            case Type::I32: return sizeof(int32_t); break;
+            case Type::I64: return sizeof(int64_t); break;
+            case Type::FLOAT: return sizeof(float); break;
+            case Type::DOUBLE: return sizeof(double); break;
+        }
+        return 0;
+    }
 
     class Root
     {
@@ -121,6 +170,7 @@ namespace ObjectModel
             }
             // static Primitive* createI32(std::string, Type type, int32_t value);
             void pack(std::vector<int8_t>*, int16_t*);
+            static Primitive unpack(const std::vector<int8_t>&);
     };
     class Array : public Root
     {
@@ -197,6 +247,14 @@ namespace Core
             }
             out.close();
         }
+
+        std::vector<int8_t> load(const char* path) 
+        {
+            std::ifstream in(path, std::ios::binary);
+            std::vector<int8_t> result((std::istreambuf_iterator<char>(in)),(std::istreambuf_iterator<char>()));
+            return result;   
+        }
+
         void retriveNsave(ObjectModel::Root* r)
         {
             int16_t iterator = 0;
@@ -272,6 +330,20 @@ namespace ObjectModel
         Core::encode<int8_t>(buffer, iterator, type);
         Core::encode<int8_t>(buffer, iterator, *data); //Мы разыменовываем весь вектор, а не указатель на 1 эл
         Core::encode<int32_t>(buffer, iterator, size);
+    }
+
+    Primitive Primitive::unpack(const std::vector<int8_t>& buffer)
+    {
+        Primitive p;
+        int16_t iterator = 0;
+        p.nameLenght = Core::decode<int16_t>(buffer, iterator);
+        p.name = Core::decode<std::string>(buffer, iterator);
+        p.wrapper = Core::decode<int8_t>(buffer, iterator);
+        p.type = Core::decode<int8_t>(buffer, iterator);
+        p.data = new std::vector<int8_t>(getTypeSize((Type)p.type));
+        Core::decode(buffer, iterator, *p.data);
+        p.size = Core::decode<int32_t>(buffer, iterator);
+        return p;
     }
 
     void Array::pack(std::vector<int8_t>* buffer, int16_t* iterator)
@@ -531,17 +603,20 @@ int main(int argc, char** argv)
     // Core::Util::retriveNsave(&Test);
 
     
-    System Foo("foo");
-    Event* e = new KeyBoardEvent('a', true, false);
-    Foo.addEvent(e);
-    Foo.serialize();
+    // System Foo("foo");
+    // Event* e = new KeyBoardEvent('a', true, false);
+    // Foo.addEvent(e);
+    // Foo.serialize();
     // KeyBoardEvent* kb = static_cast<KeyBoardEvent*>(Foo.getEvent());
     // std::cout << kb->system->getEvent()->getdType() << std::endl;
+
+    int16_t foo = 16;
+    Primitive* p = Primitive::create("int16", Type::I16, foo);
+    Core::Util::retriveNsave(p);
+
+    std::vector<int8_t> result = Core::Util::load("int16.ttc");
+
+    Primitive pp = Primitive::unpack(result);
+    std::cout << pp.getSize() << std::endl;
+    std::cout << pp.getName() << std::endl;
 }
-
-
-
-
-
-
-
